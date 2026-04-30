@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from .drift_detector import DriftDetector
 from typing import Any
 
 try:
@@ -31,3 +32,11 @@ def predict_task(features: list[float], expected_size: int | None = None) -> dic
     prediction = model_service.predict(normalized)
     return {"attack": prediction.attack, "confidence": prediction.confidence}
 
+detector = DriftDetector(artifacts_dir=os.getenv("MODEL_ARTIFACT_DIR", "artifacts"))
+@celery_app.task(name="check_data_drift")
+def check_data_drift(features_batch: list[list[float]]) -> dict:
+    """Background task to run KS-Test on a batch of inference traffic."""
+    result = detector.detect_drift(features_batch)
+    if result["drift_detected"]:
+        print(f"[ALERT] Data Drift Detected! Ratio: {result['drift_ratio']:.2f}")
+    return result
