@@ -109,20 +109,41 @@ Final Prediction = XGBoost Prediction OR Autoencoder Anomaly
 ## 📁 Project Structure
 
 ```
-ml_ids_project/
-│
-├── data/
-│   └── raw/                      # CIC-IDS2017 CSV files
-│
-├── artifacts/                    # Saved models & preprocessing objects
-│   ├── scaler.joblib            # StandardScaler for feature normalization
-│   ├── xgb_model.joblib         # Trained XGBoost classifier
-│   ├── autoencoder.pt           # Trained PyTorch autoencoder
-│   └── autoencoder_threshold.npy # Anomaly detection threshold
-│
-├── pipeline.py                   # End-to-end ML pipeline
-├── README.md                     # Project documentation
-└── requirements.txt              # Python dependencies
+ml-ids/
+├─ docker/
+│  ├─ docker-compose.yml
+│  └─ k8s/                       # optional k8s manifests
+├─ data/
+│  ├─ raw/                       # downloaded datasets (NSL-KDD, UNSW-NB15, CICIDS2017)
+│  └─ processed/
+├─ notebooks/
+│  └─ eda_and_feature_engineering.ipynb
+├─ src/
+│  ├─ preprocessing/
+│  │  └─ preprocess.py
+│  ├─ models/
+│  │  ├─ train.py
+│  │  ├─ autoencoder.py
+│  │  └─ xgb_trainer.py
+│  ├─ inference/
+│  │  ├─ app/
+│  │  │  ├─ main.py
+│  │  │  ├─ model_loader.py
+│  │  │  └─ requirements.txt
+│  │  └─ kafka_consumer.py
+│  ├─ producer/
+│  │  └─ simulate_traffic.py
+│  ├─ mlops/
+│  │  ├─ celery_worker.py
+│  │  └─ tasks.py
+│  └─ utils/
+│     └─ feature_utils.py
+├─ deployments/
+│  ├─ fastapi-deployment.yaml
+│  ├─ mlflow-deployment.yaml
+│  └─ kafka-deployment.yaml
+├─ Dockerfile (for training & inference images)
+└─ README.md
 ```
 
 ---
