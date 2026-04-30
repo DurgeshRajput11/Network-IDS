@@ -5,6 +5,7 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
+import mlflow
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -12,9 +13,11 @@ from sklearn.feature_selection import RFE
 from sklearn.tree import DecisionTreeClassifier
 
 def main() -> None:
-    data_path = "../../data/cic.csv"
-    artifacts_dir = "../../artifacts"
-    data_out_dir = os.path.join(artifacts_dir, "data")
+    mlflow.set_experiment("Network-IDS")
+    with mlflow.start_run(run_name="preprocessing"):
+        data_path = "../../data/cic.csv"
+        artifacts_dir = "../../artifacts"
+        data_out_dir = os.path.join(artifacts_dir, "data")
     
     os.makedirs(artifacts_dir, exist_ok=True)
     os.makedirs(data_out_dir, exist_ok=True)
@@ -25,18 +28,18 @@ def main() -> None:
         df = df.drop(columns=["Timestamp"])
     df.drop_duplicates(inplace=True)
 
-    # Separate X and y
     X = df.drop(columns=["Label"])
     y = df["Label"]
 
-    # Convert all infinite values to NaN
     X.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    mlflow.log_param("test_size", 0.2)
+    mlflow.log_param("val_size_from_temp", 0.5)
 
     print("Splitting dataset...")
     X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
     X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42)
 
-    # 1. Label Encoding
     le = LabelEncoder()
     y_train_enc = le.fit_transform(y_train)
     y_val_enc = le.transform(y_val)
@@ -47,18 +50,19 @@ def main() -> None:
     with open(os.path.join(artifacts_dir, "label_map.json"), "w") as f:
         json.dump(label_map, f, indent=4)
 
-    # 2. Imputation (Fit on train only)
     print("Imputing missing values...")
     imputer = SimpleImputer(strategy="median")
     X_train_imp = pd.DataFrame(imputer.fit_transform(X_train), columns=X_train.columns)
     X_val_imp = pd.DataFrame(imputer.transform(X_val), columns=X_val.columns)
     X_test_imp = pd.DataFrame(imputer.transform(X_test), columns=X_test.columns)
 
-    # 3. Feature Selection (Top 20 to match simulator)
     print("Selecting top 20 features via RFE...")
     dtc = DecisionTreeClassifier(random_state=42)
-    rfe = RFE(estimator=dtc, n_features_to_select=20, step=0.05)
+    target_features = 20
+    rfe = RFE(estimator=dtc, n_features_to_select=target_features, step=0.05)
     rfe.fit(X_train_imp, y_train_enc)
+    
+    mlflow.log_param("rfe_features_selected", target_features)
     
     selected_features = X_train_imp.columns[rfe.support_].tolist()
     with open(os.path.join(artifacts_dir, "features_schema.json"), "w") as f:
@@ -68,7 +72,6 @@ def main() -> None:
     X_val_sel = X_val_imp[selected_features]
     X_test_sel = X_test_imp[selected_features]
 
-    # 4. Scaling
     print("Scaling features...")
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train_sel)
@@ -76,7 +79,6 @@ def main() -> None:
     X_test_scaled = scaler.transform(X_test_sel)
     joblib.dump(scaler, os.path.join(artifacts_dir, "scaler.joblib"))
 
-    # 5. Save arrays
     print("Saving processed arrays...")
     np.save(os.path.join(data_out_dir, "X_train.npy"), X_train_scaled)
     np.save(os.path.join(data_out_dir, "y_train.npy"), y_train_enc)
@@ -84,6 +86,11 @@ def main() -> None:
     np.save(os.path.join(data_out_dir, "y_val.npy"), y_val_enc)
     np.save(os.path.join(data_out_dir, "X_test.npy"), X_test_scaled)
     np.save(os.path.join(data_out_dir, "y_test.npy"), y_test_enc)
+    
+    mlflow.log_metric("train_samples", X_train_scaled.shape[0])
+    mlflow.log_artifact(os.path.join(artifacts_dir, "features_schema.json"))
+    mlflow.log_artifact(os.path.join(artifacts_dir, "scaler.joblib"))
+    
     print("Preprocessing complete!")
 
 if __name__ == "__main__":
