@@ -12,15 +12,17 @@ class LitAutoencoder(nn.Module):
     def __init__(self, input_dim: int):
         super().__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(input_dim, 14),
+            nn.Linear(input_dim, 16),
             nn.ReLU(),
-            nn.Linear(14, 7),
+            nn.Dropout(0.1),
+            nn.Linear(16, 8),
             nn.ReLU()
         )
         self.decoder = nn.Sequential(
-            nn.Linear(7, 14),
+            nn.Linear(8, 16),
             nn.ReLU(),
-            nn.Linear(14, input_dim)
+            nn.Dropout(0.1),
+            nn.Linear(16, input_dim)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -52,13 +54,13 @@ def main() -> None:
 
         input_dim = X_train.shape[1]
         model = LitAutoencoder(input_dim)
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
         criterion = nn.MSELoss()
 
-        mlflow.log_params({"epochs": 10, "batch_size": 256, "learning_rate": 1e-3, "input_dim": input_dim})
+        mlflow.log_params({"epochs": 15, "batch_size": 256, "learning_rate": 1e-3, "input_dim": input_dim})
 
         print("Training Autoencoder...")
-        for epoch in range(10):
+        for epoch in range(15):
             model.train()
             total_loss = 0
             for batch_x, _ in loader:
@@ -76,7 +78,7 @@ def main() -> None:
         with torch.no_grad():
             val_pred = model(val_tensor)
             mses = torch.mean((val_pred - val_tensor)**2, dim=1).numpy()
-            tau = float(np.percentile(mses, 95))
+            tau = float(np.percentile(mses, 99.9))
         
         mlflow.log_metric("anomaly_threshold_tau", tau)
         print(f"Calculated Anomaly Threshold (Tau): {tau:.4f}")
