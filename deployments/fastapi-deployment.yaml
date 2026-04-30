@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ids-fastapi
+  labels:
+    app: ids-fastapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ids-fastapi
+  template:
+    metadata:
+      labels:
+        app: ids-fastapi
+    spec:
+      containers:
+        - name: fastapi
+          image: your-dockerhub-user/ids-fastapi:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MODEL_ARTIFACT_DIR
+              value: "artifacts"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ids-fastapi
+spec:
+  selector:
+    app: ids-fastapi
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+

@@ -1,374 +1,263 @@
-#  Hybrid Network Intrusion Detection System (IDS)
+# Hybrid Network Intrusion Detection System (IDS)
 
+## Goal
+Build an end-to-end ML-based Intrusion Detection System that:
+- Detects known attacks using supervised learning (XGBoost)
+- Detects unknown attacks using anomaly detection (Autoencoder)
+- Works in a real-time streaming pipeline using Kafka + FastAPI
 
-An end-to-end machine learning pipeline for detecting network intrusions using a **hybrid approach** that combines supervised learning for known attacks and anomaly detection for identifying unknown or zero-day threats.
+## High-Level Architecture
 
----
+Traffic -> Producer -> Kafka -> Consumer -> FastAPI -> ML Model -> Output -> (Elasticsearch -> Kibana)
 
-##  Table of Contents
+## Team Roles
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Dataset](#dataset)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Pipeline Details](#pipeline-details)
-- [Model Performance](#model-performance)
-- [Future Work](#future-work)
-- [Contributing](#contributing)
-- [License](#license)
+### ML Engineer
+Responsible for:
+- Data preprocessing
+- Training XGBoost (full dataset)
+- Training Autoencoder (only benign data)
+- Hybrid prediction logic
+- Saving model artifacts
 
----
+### Backend Engineer
+Responsible for:
+- FastAPI inference API
+- Kafka producer and consumer
+- Integration with ML model
+- Optional dashboard (Elasticsearch + Kibana)
+- Docker deployment
 
-## 🎯 Overview
+## ML Design
 
-Traditional IDS systems rely on predefined rules and fail to detect new attack patterns. This project addresses that limitation by implementing a **hybrid detection approach**:
+### 1. XGBoost (Supervised)
+- Train on full dataset
+- Labels:
+  - 0 -> BENIGN
+  - 1 -> ATTACK
 
-| Component | Purpose | Method |
-|-----------|---------|--------|
-| **XGBoost Classifier** | Detects known attacks | Supervised Learning |
-| **Autoencoder** | Detects anomalies/unseen attacks | Unsupervised Learning |
+### 2. Autoencoder (Unsupervised)
+- Train only on BENIGN data
+- Learns normal traffic patterns
+- Detects anomalies using reconstruction error
 
-The final system combines both outputs to improve detection accuracy and reduce false positives, making it robust against both known and zero-day attacks.
+### 3. Hybrid Logic
 
----
-
-## ✨ Features
-
-- **Hybrid Detection**: Combines supervised and unsupervised learning
-- **Handles Noisy Data**: Robust preprocessing for real-world network traffic
-- **Scalable Pipeline**: End-to-end automated workflow
-- **Model Persistence**: Saves trained models for production deployment
-- **Zero-Day Detection**: Identifies previously unseen attack patterns
-- **Low False Positives**: Dual-model approach reduces incorrect alerts
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐
-│  Network Data   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Preprocessing   │
-│  - Cleaning     │
-│  - Scaling      │
-└────────┬────────┘
-         │
-         ▼
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌─────┐   ┌──────────┐
-│ XGB │   │Autoencoder│
-│Model│   │  (Anomaly)│
-└──┬──┘   └─────┬────┘
-   │            │
-   └─────┬──────┘
-         ▼
-   ┌──────────┐
-   │  Hybrid  │
-   │ Decision │
-   │  (OR)    │
-   └─────┬────┘
-         ▼
-   ┌──────────┐
-   │ Attack?  │
-   │ Yes/No   │
-   └──────────┘
-```
-
-**Hybrid Decision Rule:**
 ```python
-Final Prediction = XGBoost Prediction OR Autoencoder Anomaly
+final_prediction = (xgb_pred == 1) or (ae_error > threshold)
 ```
 
----
+## Dataset
 
-## 📊 Dataset
+Primary dataset:
+- CIC-IDS2017
 
-**[CIC-IDS2017](https://www.unb.ca/cic/datasets/ids-2017.html)**
+## Project Structure
 
-- Network flow-based dataset with **70+ features**
-- Realistic network traffic with labeled attacks
-- Multiple attack categories:
-  - DoS / DDoS
-  - Port Scanning
-  - Web Attacks
-  - Brute Force
-  - Infiltration
-  - Botnet
-
----
-
-## 📁 Project Structure
-
-```
+```text
 ml-ids/
-├─ docker/
-│  ├─ docker-compose.yml
-│  └─ k8s/                       # optional k8s manifests
-├─ data/
-│  ├─ raw/                       # downloaded datasets (NSL-KDD, UNSW-NB15, CICIDS2017)
-│  └─ processed/
-├─ notebooks/
-│  └─ eda_and_feature_engineering.ipynb
-├─ src/
-│  ├─ preprocessing/
-│  │  └─ preprocess.py
-│  ├─ models/
-│  │  ├─ train.py
-│  │  ├─ autoencoder.py
-│  │  └─ xgb_trainer.py
-│  ├─ inference/
-│  │  ├─ app/
-│  │  │  ├─ main.py
-│  │  │  ├─ model_loader.py
-│  │  │  └─ requirements.txt
-│  │  └─ kafka_consumer.py
-│  ├─ producer/
-│  │  └─ simulate_traffic.py
-│  ├─ mlops/
-│  │  ├─ celery_worker.py
-│  │  └─ tasks.py
-│  └─ utils/
-│     └─ feature_utils.py
-├─ deployments/
-│  ├─ fastapi-deployment.yaml
-│  ├─ mlflow-deployment.yaml
-│  └─ kafka-deployment.yaml
-├─ Dockerfile (for training & inference images)
-└─ README.md
+├── data/
+│   ├── raw/
+│   └── processed/
+├── src/
+│   ├── preprocessing/
+│   │   └── preprocess.py
+│   ├── models/
+│   │   ├── train.py
+│   │   ├── xgb_trainer.py
+│   │   └── autoencoder.py
+│   ├── inference/
+│   │   ├── app/
+│   │   │   ├── main.py
+│   │   │   └── model_loader.py
+│   │   └── kafka_consumer.py
+│   ├── producer/
+│   │   └── simulate_traffic.py
+│   ├── utils/
+│   └── mlops/
+├── docker/
+├── deployments/
+├── pyproject.toml
+├── uv.lock
+└── README.md
 ```
 
----
+## Environment Setup (uv)
 
-## 🚀 Installation
+Create environment:
 
-### Prerequisites
+```powershell
+uv venv
+```
 
-- Python 3.8 or higher
-- pip package manager
+Activate:
 
-### Setup
+Windows:
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/ml_ids_project.git
-   cd ml_ids_project
-   ```
+```powershell
+.venv\Scripts\activate
+```
 
-2. **Create virtual environment** (recommended)
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-   Or install manually:
-   ```bash
-   pip install pandas numpy scikit-learn xgboost torch joblib
-   ```
-
-4. **Download dataset**
-   - Download CIC-IDS2017 from [official source](https://www.unb.ca/cic/datasets/ids-2017.html)
-   - Place CSV files in `data/raw/` directory
-
----
-
-## 💻 Usage
-
-### Training the Model
-
-Run the complete pipeline:
+Mac/Linux:
 
 ```bash
-python pipeline.py
+source .venv/bin/activate
 ```
 
-This will:
-1. Load and merge all CSV files from `data/raw/`
-2. Clean and preprocess the data
-3. Train both XGBoost and Autoencoder models
-4. Save all artifacts to `artifacts/` directory
+Install dependencies:
 
-### Output
-
-After successful execution, the following files will be generated:
-
-```
-artifacts/
-├── scaler.joblib                 # Feature scaler
-├── xgb_model.joblib             # XGBoost model
-├── autoencoder.pt               # Autoencoder weights
-└── autoencoder_threshold.npy    # Anomaly threshold
+```powershell
+uv add pandas numpy scikit-learn xgboost torch fastapi uvicorn kafka-python mlflow
 ```
 
-### Using Trained Models
+Sync environment:
 
-```python
-import joblib
-import torch
-import numpy as np
-
-# Load artifacts
-scaler = joblib.load('artifacts/scaler.joblib')
-xgb_model = joblib.load('artifacts/xgb_model.joblib')
-autoencoder = torch.load('artifacts/autoencoder.pt')
-threshold = np.load('artifacts/autoencoder_threshold.npy')
-
-# Predict on new data
-X_new_scaled = scaler.transform(X_new)
-
-# XGBoost prediction
-xgb_pred = xgb_model.predict(X_new_scaled)
-
-# Autoencoder anomaly detection
-reconstruction = autoencoder(torch.FloatTensor(X_new_scaled))
-error = np.mean((X_new_scaled - reconstruction.detach().numpy())**2, axis=1)
-ae_pred = (error > threshold).astype(int)
-
-# Hybrid decision
-final_prediction = np.logical_or(xgb_pred, ae_pred).astype(int)
+```powershell
+uv sync
 ```
 
----
+## Git Workflow
 
-## 🔄 Pipeline Details
+Start working:
 
-### Step 1: Data Loading
-- Merges multiple CSV files from the dataset
-- Handles large files efficiently using chunking
-
-### Step 2: Data Cleaning
-- Removes missing values (`NaN`)
-- Filters infinite values (`inf`, `-inf`)
-- Ensures data quality for training
-
-### Step 3: Label Processing
-- Binary classification:
-  - `BENIGN` → **0** (Normal traffic)
-  - All attack types → **1** (Malicious traffic)
-
-### Step 4: Feature Scaling
-- Applies `StandardScaler` for normalization
-- Ensures features are on the same scale
-- Critical for both XGBoost and neural networks
-
-### Step 5: Model Training
-
-**XGBoost Classifier:**
-- Trained on labeled data (supervised)
-- Learns patterns of known attacks
-- Fast inference, high accuracy
-
-**Autoencoder:**
-- Trained only on normal traffic (unsupervised)
-- Learns to reconstruct benign patterns
-- High reconstruction error indicates anomaly
-
-### Step 6: Anomaly Detection
-- Calculates reconstruction error for each sample
-- Sets threshold based on normal traffic distribution
-- Flags samples exceeding threshold as anomalies
-
-### Step 7: Hybrid Decision
-```
-IF (XGBoost predicts ATTACK) OR (Autoencoder detects ANOMALY):
-    ALERT: Intrusion Detected
-ELSE:
-    BENIGN: Normal Traffic
+```powershell
+git pull
+uv sync
 ```
 
-### Step 8: Model Persistence
-- Saves all trained models and preprocessing objects
-- Enables deployment without retraining
-- Version control for model artifacts
+After changes:
 
----
+```powershell
+git add .
+git commit -m "message"
+git pull
+git push
+```
 
-## 📈 Model Performance
+## Backend API (FastAPI)
 
-| Metric | XGBoost | Autoencoder | Hybrid |
-|--------|---------|-------------|--------|
-| Accuracy | High | Medium | **Highest** |
-| False Positives | Low | Medium | **Lowest** |
-| Zero-Day Detection | ❌ | ✅ | ✅ |
-| Known Attack Detection | ✅ | Medium | ✅ |
+Endpoint:
+- `POST /predict`
 
-*Note: Exact metrics depend on dataset split and hyperparameters*
+Request:
 
----
+```json
+{
+  "features": [0.12, 34.5, 1]
+}
+```
 
-## 🔮 Future Work
+Response:
 
-### Experiment Tracking
-- [ ] Integrate **MLflow** for experiment management
-- [ ] Track hyperparameters, metrics, and model versions
-- [ ] Enable model comparison and A/B testing
+```json
+{
+  "attack": 1,
+  "confidence": 0.92
+}
+```
 
-### Deployment
-- [ ] Build REST API using **FastAPI**
-- [ ] Containerize with **Docker**
-- [ ] Deploy to cloud (AWS, GCP, Azure)
+## Development Phases
 
-### Real-Time Processing
-- [ ] Integrate **Kafka** for streaming data
-- [ ] Implement sliding window detection
-- [ ] Add real-time alerting system
+### Phase 1 - ML (Model Ready)
+- Preprocessing
+- Train XGBoost
+- Train Autoencoder
+- Save artifacts:
+  - `scaler.joblib`
+  - `xgb_model.joblib`
+  - `autoencoder.pt`
+  - `threshold.npy`
 
-### Enhanced Detection
-- [ ] Extend to **multi-class classification** (classify attack types)
-- [ ] Implement **ensemble methods** (stacking, voting)
-- [ ] Add **explainability** with SHAP values
+### Phase 2 - Backend (No Model Required)
+- Build FastAPI with dummy response
+- Fix API contract
+- Test endpoint
 
-### Production Features
-- [ ] Add monitoring and logging
-- [ ] Implement model retraining pipeline
-- [ ] Create dashboard for visualization
-- [ ] Add data drift detection
+### Phase 3 - Kafka Integration
+- Producer sends traffic
+- Consumer reads from Kafka
+- Consumer calls FastAPI
 
----
+### Phase 4 - Replace Dummy with Real Model
+- Load saved artifacts
+- Call model inside API
 
-## 🤝 Contributing
+### Phase 5 - Monitoring (Optional)
+- Store results in Elasticsearch
+- Visualize in Kibana
 
-Contributions are welcome! Please follow these steps:
+## Important Rules
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+- Autoencoder must be trained only on benign data
+- Do not change API contract after defining it
+- Always run `git pull -> uv sync`
+- Do not push `.venv` to GitHub
 
----
+## Common Mistakes
 
+- Training autoencoder on full dataset
+- Skipping `uv sync`
+- Not pulling before push
+- No API contract
 
+## Copilot Instructions
 
-## 🙏 Acknowledgments
+- Generate modular code (separate preprocessing, models, inference)
+- Ensure reusable functions
+- Provide clear input/output formats
+- Keep ML logic independent from API
+- Follow project structure strictly
 
-- **Canadian Institute for Cybersecurity** for the CIC-IDS2017 dataset
-- XGBoost and PyTorch communities for excellent documentation
-- Open-source contributors
+## End Goal
 
----
+A working system where:
+- Kafka -> FastAPI -> ML Model -> Prediction -> Dashboard
+- XGBoost detects known attacks
+- Autoencoder detects anomalies
+- Hybrid logic improves detection
 
-## 📧 Contact
+## Backend Quick Start (Implemented)
 
-For questions or support, please open an issue 
+Run API (dummy inference):
 
----
+```powershell
+uv run uvicorn src.inference.app.main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-<div align="center">
-  
-**⭐ Star this repository if you find it helpful!**
+Run Kafka producer:
 
-</div>
+```powershell
+uv run python src\producer\simulate_traffic.py
+```
+
+Run Kafka consumer:
+
+```powershell
+uv run python src\inference\kafka_consumer.py
+```
+
+## Docker and Kubernetes Starters (Implemented)
+
+Added files:
+- `docker/docker-compose.yml`
+- `docker/k8s/namespace.yaml`
+- `docker/k8s/kustomization.yaml`
+- `deployments/fastapi-deployment.yaml`
+- `deployments/mlflow-deployment.yaml`
+- `deployments/kafka-deployment.yaml`
+
+Run with Docker Compose:
+
+```powershell
+docker compose -f docker\docker-compose.yml up -d
+```
+
+Apply Kubernetes manifests:
+
+```powershell
+kubectl apply -k docker\k8s
+```
+
+For Kubernetes FastAPI deployment, replace:
+- `your-dockerhub-user/ids-fastapi:latest`
+with your built/pushed app image.

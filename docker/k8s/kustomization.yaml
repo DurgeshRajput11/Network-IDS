@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ids
+
+resources:
+  - namespace.yaml
+  - ../../deployments/kafka-deployment.yaml
+  - ../../deployments/fastapi-deployment.yaml
+  - ../../deployments/mlflow-deployment.yaml
+
