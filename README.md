@@ -200,13 +200,6 @@ Response:
 - Not pulling before push
 - No API contract
 
-## Copilot Instructions
-
-- Generate modular code (separate preprocessing, models, inference)
-- Ensure reusable functions
-- Provide clear input/output formats
-- Keep ML logic independent from API
-- Follow project structure strictly
 
 ## End Goal
 
