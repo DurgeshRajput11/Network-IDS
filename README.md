@@ -245,6 +245,12 @@ Run with Docker Compose:
 docker compose -f docker\docker-compose.yml up -d
 ```
 
+Start only monitoring stack:
+
+```powershell
+docker compose -f docker\docker-compose.yml up -d elasticsearch kibana
+```
+
 Apply Kubernetes manifests:
 
 ```powershell
@@ -254,3 +260,33 @@ kubectl apply -k docker\k8s
 For Kubernetes FastAPI deployment, replace:
 - `your-dockerhub-user/ids-fastapi:latest`
 with your built/pushed app image.
+
+## Elasticsearch + Kibana Monitoring
+
+Enable Elasticsearch indexing in consumer:
+
+```powershell
+$env:ENABLE_ELASTICSEARCH="true"
+$env:ELASTICSEARCH_URL="http://127.0.0.1:9200"
+$env:ELASTICSEARCH_INDEX_PREFIX="ids-predictions"
+uv run python src\inference\kafka_consumer.py
+```
+
+This writes one enriched document per prediction into:
+- `ids-predictions-*`
+
+Bootstrap Kibana data view + dashboard:
+
+```powershell
+uv run python src\inference\setup_kibana.py
+```
+
+Then open Kibana:
+- `http://127.0.0.1:5601`
+
+Dashboard created:
+- **Hybrid IDS Monitoring Dashboard**
+  - attack count over time
+  - attack vs benign split
+  - confidence distribution
+  - top suspicious sources

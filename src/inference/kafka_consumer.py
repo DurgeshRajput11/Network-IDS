@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 import urllib.error
 import urllib.request
 
@@ -20,12 +21,28 @@ def post_prediction(api_url: str, features: list[float]) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+def index_to_elasticsearch(es_url: str, index_prefix: str, payload: dict) -> None:
+    index_name = f"{index_prefix}-{datetime.now(timezone.utc).strftime('%Y.%m.%d')}"
+    url = f"{es_url.rstrip('/')}/{index_name}/_doc"
+    req = urllib.request.Request(
+        url=url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10):
+        return
+
+
 def main() -> None:
     bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     input_topic = os.getenv("KAFKA_TOPIC", "network-traffic")
     output_topic = os.getenv("KAFKA_ALERT_TOPIC", "ids-alerts")
     group_id = os.getenv("KAFKA_GROUP_ID", "ids-consumer-group")
     api_url = os.getenv("PREDICT_API_URL", "http://127.0.0.1:8000/predict")
+    es_url = os.getenv("ELASTICSEARCH_URL", "http://127.0.0.1:9200")
+    es_index_prefix = os.getenv("ELASTICSEARCH_INDEX_PREFIX", "ids-predictions")
+    es_enabled = os.getenv("ENABLE_ELASTICSEARCH", "false").lower() == "true"
 
     consumer = KafkaConsumer(
         input_topic,
@@ -54,6 +71,25 @@ def main() -> None:
 
             enriched = {"event": event, "prediction": pred}
             producer.send(output_topic, value=enriched).get(timeout=10)
+            if es_enabled:
+                es_doc = {
+                    "@timestamp": datetime.now(timezone.utc).isoformat(),
+                    "attack": int(pred.get("attack", 0)),
+                    "confidence": float(pred.get("confidence", 0.0)),
+                    "source": event.get("source", "unknown"),
+                    "simulated_label": int(event.get("simulated_label", 0)),
+                    "features_count": len(features),
+                    "event": event,
+                    "prediction": pred,
+                }
+                try:
+                    index_to_elasticsearch(
+                        es_url=es_url,
+                        index_prefix=es_index_prefix,
+                        payload=es_doc,
+                    )
+                except urllib.error.URLError as exc:
+                    print(f"[consumer] elasticsearch error: {exc}")
             print(json.dumps(enriched))
     except KeyboardInterrupt:
         print("[consumer] stopped")
