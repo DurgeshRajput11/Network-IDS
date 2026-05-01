@@ -9,12 +9,11 @@ import mlflow
 from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder, RobustScaler
-from sklearn.feature_selection import RFE
-from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
 
 def main() -> None:
     mlflow.set_experiment("Network-IDS")
-    with mlflow.start_run(run_name="preprocessing"):
+    with mlflow.start_run(run_name="preprocessing_advanced"):
         data_path = "../../data/cic.csv"
         artifacts_dir = "../../artifacts"
         data_out_dir = os.path.join(artifacts_dir, "data")
@@ -56,15 +55,16 @@ def main() -> None:
         X_val_imp = pd.DataFrame(imputer.transform(X_val), columns=X_val.columns)
         X_test_imp = pd.DataFrame(imputer.transform(X_test), columns=X_test.columns)
 
-        print("Selecting top 20 features via L1 RFE...")
-        estimator = LogisticRegression(penalty="l1", solver="liblinear", random_state=42, max_iter=500)
-        target_features = 20
-        rfe = RFE(estimator=estimator, n_features_to_select=target_features, step=0.05)
-        rfe.fit(X_train_imp, y_train_enc)
+        print("Selecting top 20 features via XGBoost importance...")
+        fs_model = XGBClassifier(n_estimators=100, max_depth=5, n_jobs=-1, random_state=42)
+        fs_model.fit(X_train_imp, y_train_enc)
         
-        mlflow.log_param("rfe_features_selected", target_features)
+        importances = fs_model.feature_importances_
+        top_indices = np.argsort(importances)[-20:]
         
-        selected_features = X_train_imp.columns[rfe.support_].tolist()
+        selected_features = X_train_imp.columns[top_indices].tolist()
+        mlflow.log_param("features_selected", 20)
+        
         with open(os.path.join(artifacts_dir, "features_schema.json"), "w") as f:
             json.dump({"features": selected_features}, f, indent=4)
             
@@ -72,11 +72,16 @@ def main() -> None:
         X_val_sel = X_val_imp[selected_features]
         X_test_sel = X_test_imp[selected_features]
 
-        print("Scaling features...")
+        print("Scaling features with RobustScaler...")
         scaler = RobustScaler()
         X_train_scaled = scaler.fit_transform(X_train_sel)
         X_val_scaled = scaler.transform(X_val_sel)
         X_test_scaled = scaler.transform(X_test_sel)
+        
+        X_train_scaled = np.clip(X_train_scaled, -5, 5)
+        X_val_scaled = np.clip(X_val_scaled, -5, 5)
+        X_test_scaled = np.clip(X_test_scaled, -5, 5)
+        
         joblib.dump(scaler, os.path.join(artifacts_dir, "scaler.joblib"))
 
         print("Saving processed arrays...")

@@ -7,6 +7,7 @@ import mlflow.xgboost
 import numpy as np
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, balanced_accuracy_score, f1_score
+from sklearn.utils.class_weight import compute_sample_weight
 
 def main() -> None:
     mlflow.set_experiment("Network-IDS")
@@ -22,6 +23,12 @@ def main() -> None:
 
         num_classes = len(np.unique(y_train))
 
+        print("Computing sample weights for imbalanced classes...")
+        sample_weights = compute_sample_weight(
+            class_weight='balanced',
+            y=y_train
+        )
+
         params = {
             "n_estimators": 300,
             "max_depth": 6,
@@ -30,7 +37,8 @@ def main() -> None:
             "num_class": num_classes,
             "n_jobs": -1,
             "random_state": 42,
-            "eval_metric": "mlogloss"
+            "eval_metric": "mlogloss",
+            "early_stopping_rounds": 20  
         }
         mlflow.log_params(params)
 
@@ -39,8 +47,8 @@ def main() -> None:
         print("Training XGBoost with early stopping...")
         clf.fit(
             X_train, y_train,
+            sample_weight=sample_weights,
             eval_set=[(X_val, y_val)],
-            early_stopping_rounds=20,
             verbose=10
         )
 

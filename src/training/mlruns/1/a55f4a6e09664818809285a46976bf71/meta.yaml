@@ -1,0 +1,15 @@
+artifact_uri: file:///home/harsh/projects/Network-IDS/src/training/mlruns/1/a55f4a6e09664818809285a46976bf71/artifacts
+end_time: 1777645109815
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+name: ''
+run_id: a55f4a6e09664818809285a46976bf71
+run_uuid: a55f4a6e09664818809285a46976bf71
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1777645109776
+status: 4
+tags: []
+user_id: harsh
