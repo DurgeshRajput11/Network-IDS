@@ -65,8 +65,11 @@ class HybridModelService:
                 self.benign_idx = label_map.get("Benign", 0)
 
         self.dummy_mode = self.xgb_model is None or self.scaler is None
+        self.expected_features = 20
 
     def predict(self, features: list[float]) -> PredictionOutput:
+        if len(features) != self.expected_features:
+            raise ValueError(f"Invalid feature count. Expected {self.expected_features}, but got {len(features)}.")
         sample = np.asarray(features, dtype=np.float32).reshape(1, -1)
 
         if self.dummy_mode:
