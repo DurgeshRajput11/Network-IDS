@@ -1,42 +1,59 @@
 from __future__ import annotations
 
 import os
-from .drift_detector import DriftDetector
-from typing import Any
+import subprocess
+from typing import Any, List
+from celery import Celery
 
-try:
-    from celery import Celery
-except ModuleNotFoundError:  # pragma: no cover
-    Celery = None  # type: ignore[assignment]
+from src.mlops.drift_detector import DriftDetector
 
-from src.inference.app.model_loader import HybridModelService
-from src.utils.feature_utils import to_float_features, validate_feature_vector
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
 
-
-def create_celery_app() -> Any:
-    if Celery is None:
-        raise RuntimeError("Celery is not installed. Install with: uv add celery")
-    broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-    return Celery("ids_tasks", broker=broker_url, backend=backend_url)
-
-
-celery_app = create_celery_app()
-model_service = HybridModelService(artifacts_dir=os.getenv("MODEL_ARTIFACT_DIR", "artifacts"))
-
-
-@celery_app.task(name="ids.predict")
-def predict_task(features: list[float], expected_size: int | None = None) -> dict[str, float | int]:
-    normalized = to_float_features(features)
-    validate_feature_vector(normalized, expected_size=expected_size)
-    prediction = model_service.predict(normalized)
-    return {"attack": prediction.attack, "confidence": prediction.confidence}
+celery_app = Celery("tasks", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
 detector = DriftDetector(artifacts_dir=os.getenv("MODEL_ARTIFACT_DIR", "artifacts"))
+
 @celery_app.task(name="check_data_drift")
-def check_data_drift(features_batch: list[list[float]]) -> dict:
+def check_data_drift(features_batch: List[List[float]]) -> dict:
     """Background task to run KS-Test on a batch of inference traffic."""
+    print(f"Running drift detection on a batch of {len(features_batch)} samples...")
     result = detector.detect_drift(features_batch)
-    if result["drift_detected"]:
-        print(f"[ALERT] Data Drift Detected! Ratio: {result['drift_ratio']:.2f}")
+    if result.get("drift_detected"):
+        print(f"[ALERT] Data Drift Detected! Ratio: {result.get('drift_ratio', 0):.2f}")
+    else:
+        print("No significant data drift detected.")
     return result
+
+@celery_app.task(name="trigger_retraining_pipeline")
+def trigger_retraining_pipeline() -> dict:
+    """
+    Executes the entire training pipeline as a shell command.
+    This ensures it runs in a clean, isolated process.
+    """
+    scripts = ["processing.py", "autoencoder.py", "train_xgboost.py"]
+    training_dir = "src/training"
+    results = {}
+
+    for script in scripts:
+        command = f"python {os.path.join(training_dir, script)}"
+        print(f"Executing retraining step: {command}")
+        
+        try:
+            process = subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            results[script] = {"status": "success", "output": process.stdout}
+            print(f"Successfully executed {script}.")
+        except subprocess.CalledProcessError as e:
+            error_message = f"Failed to execute {script}. Error: {e.stderr}"
+            print(error_message)
+            results[script] = {"status": "failed", "error": e.stderr}
+            return {"status": "FAILED", "details": results}
+
+    print("Retraining pipeline completed successfully.")
+    return {"status": "SUCCESS", "details": results}
