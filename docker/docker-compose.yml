@@ -33,6 +33,7 @@ services:
       working_dir: /app
       volumes:
         - ../:/app
+        - uv_cache:/root/.cache/uv  # Added cache mount
       command: >
         sh -c "
         apt-get update &&
@@ -42,6 +43,7 @@ services:
         /opt/venv/bin/python -m uvicorn src.inference.app.main:app --host 0.0.0.0 --port 8000
         "
       environment:
+        UV_CACHE_DIR: /root/.cache/uv  # Tell uv to use the volume
         MODEL_ARTIFACT_DIR: /app/artifacts
         CELERY_BROKER_URL: redis://redis:6379/0
         CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -64,11 +66,13 @@ services:
     working_dir: /app
     volumes:
       - ../:/app
+      - uv_cache:/root/.cache/uv  # Added cache mount
     command:
       - sh
       - -c
       - ' apt-get update && apt-get install -y curl && pip install --no-cache-dir uv && UV_PROJECT_ENVIRONMENT=/opt/venv uv sync --project /app && /opt/venv/bin/python -m celery -A src.mlops.celery_worker worker --loglevel=info '
     environment:
+      UV_CACHE_DIR: /root/.cache/uv  # Tell uv to use the volume
       MODEL_ARTIFACT_DIR: /app/artifacts
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -105,3 +109,6 @@ services:
       "
     ports:
       - "5000:5000"
+
+volumes:
+  uv_cache:

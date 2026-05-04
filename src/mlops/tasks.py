@@ -65,11 +65,13 @@ SIMULATION_PID_KEY = "simulation_pid"
 @celery_app.task(name="start_traffic_simulation")
 def start_traffic_simulation():
     """Starts both the traffic producer and consumer."""
-    producer_cmd = "python src/simulation/simulate_traffic.py"
+    # UPDATE THIS PATH
+    producer_cmd = "python src/producer/simulate_traffic.py"
     producer_proc = subprocess.Popen(producer_cmd, shell=True)
     redis_client.set(f"{SIMULATION_PID_KEY}_producer", producer_proc.pid)
     
-    consumer_cmd = "python src/simulation/kafka_consumer.py"
+    # UPDATE THIS PATH
+    consumer_cmd = "python src/inference/kafka_consumer.py"
     consumer_proc = subprocess.Popen(consumer_cmd, shell=True)
     redis_client.set(f"{SIMULATION_PID_KEY}_consumer", consumer_proc.pid)
     
