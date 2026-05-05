@@ -31,7 +31,7 @@ class LitAutoencoder(nn.Module):
 def main() -> None:
     mlflow.set_experiment("Network-IDS")
     with mlflow.start_run(run_name="autoencoder_training"):
-        artifacts_dir = "../../artifacts"
+        artifacts_dir = "artifacts"
         data_dir = os.path.join(artifacts_dir, "data")
         
         with open(os.path.join(artifacts_dir, "label_map.json"), "r") as f:

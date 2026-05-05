@@ -66,17 +66,19 @@ services:
     working_dir: /app
     volumes:
       - ../:/app
-      - uv_cache:/root/.cache/uv  # Added cache mount
+      - uv_cache:/root/.cache/uv  
     command:
       - sh
       - -c
       - ' apt-get update && apt-get install -y curl && pip install --no-cache-dir uv && UV_PROJECT_ENVIRONMENT=/opt/venv uv sync --project /app && /opt/venv/bin/python -m celery -A src.mlops.celery_worker worker --loglevel=info '
     environment:
-      UV_CACHE_DIR: /root/.cache/uv  # Tell uv to use the volume
+      UV_CACHE_DIR: /root/.cache/uv  
       MODEL_ARTIFACT_DIR: /app/artifacts
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       REDIS_HOST: redis
+      PREDICT_API_URL: http://fastapi:8000/predict
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       - redis
     restart: on-failure 

@@ -37,7 +37,7 @@ def trigger_retraining_pipeline() -> dict:
     results = {}
 
     for script in scripts:
-        command = f"python {os.path.join(training_dir, script)}"
+        command = f"/opt/venv/bin/python {os.path.join(training_dir, script)}"
         print(f"Executing retraining step: {command}")
         
         try:
@@ -65,13 +65,12 @@ SIMULATION_PID_KEY = "simulation_pid"
 @celery_app.task(name="start_traffic_simulation")
 def start_traffic_simulation():
     """Starts both the traffic producer and consumer."""
-    # UPDATE THIS PATH
-    producer_cmd = "python src/producer/simulate_traffic.py"
+    
+    producer_cmd = "/opt/venv/bin/python src/producer/simulate_traffic.py"
     producer_proc = subprocess.Popen(producer_cmd, shell=True)
     redis_client.set(f"{SIMULATION_PID_KEY}_producer", producer_proc.pid)
     
-    # UPDATE THIS PATH
-    consumer_cmd = "python src/inference/kafka_consumer.py"
+    consumer_cmd = "/opt/venv/bin/python src/inference/kafka_consumer.py"
     consumer_proc = subprocess.Popen(consumer_cmd, shell=True)
     redis_client.set(f"{SIMULATION_PID_KEY}_consumer", consumer_proc.pid)
     

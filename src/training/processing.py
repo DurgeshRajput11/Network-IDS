@@ -14,8 +14,8 @@ from xgboost import XGBClassifier
 def main() -> None:
     mlflow.set_experiment("Network-IDS")
     with mlflow.start_run(run_name="preprocessing_advanced"):
-        data_path = "../../data/cic.csv"
-        artifacts_dir = "../../artifacts"
+        data_path = "data/cic.csv"
+        artifacts_dir = "artifacts"
         data_out_dir = os.path.join(artifacts_dir, "data")
         
         os.makedirs(artifacts_dir, exist_ok=True)
